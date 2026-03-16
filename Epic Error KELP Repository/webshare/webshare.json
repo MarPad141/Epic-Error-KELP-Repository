@@ -1,0 +1,136 @@
+{
+  "manifest": {
+    "id": "webshare",
+    "name": "Webshare.cz",
+    "version": "1.0.0",
+    "description": "České cloudové úložiště s přímými streamy. Vyžaduje VIP účet na webshare.cz.",
+    "author": "EpicError",
+    "type": "api",
+    "capabilities": ["search", "auth", "directStream"],
+    "homeUrl": "https://webshare.cz"
+  },
+  "auth": {
+    "type": "credentials",
+    "fields": [
+      {
+        "key": "username",
+        "label": "Uživatelské jméno",
+        "hint": "Zadejte uživatelské jméno nebo e-mail",
+        "isSecret": false,
+        "required": true
+      },
+      {
+        "key": "password",
+        "label": "Heslo",
+        "hint": "Zadejte heslo",
+        "isSecret": true,
+        "required": true
+      }
+    ],
+    "login": [
+      {
+        "action": "http",
+        "method": "POST",
+        "url": "https://webshare.cz/api/salt/",
+        "contentType": "application/x-www-form-urlencoded",
+        "body": "username_or_email={{username}}",
+        "responseType": "xml",
+        "outputs": {
+          "salt": "salt",
+          "salt_status": "status"
+        }
+      },
+      {
+        "action": "assert",
+        "variable": "salt_status",
+        "equals": "OK"
+      },
+      {
+        "action": "md5crypt",
+        "input": "{{password}}",
+        "salt": "{{salt}}",
+        "output": "crypted"
+      },
+      {
+        "action": "sha1",
+        "input": "{{crypted}}",
+        "output": "hashed_password"
+      },
+      {
+        "action": "http",
+        "method": "POST",
+        "url": "https://webshare.cz/api/login/",
+        "contentType": "application/x-www-form-urlencoded",
+        "body": "username_or_email={{username}}&password={{hashed_password}}&keep_logged_in=1",
+        "responseType": "xml",
+        "outputs": {
+          "token": "token",
+          "login_status": "status"
+        }
+      },
+      {
+        "action": "assert",
+        "variable": "login_status",
+        "equals": "OK"
+      }
+    ],
+    "check": [
+      {
+        "action": "http",
+        "method": "POST",
+        "url": "https://webshare.cz/api/user_data/",
+        "contentType": "application/x-www-form-urlencoded",
+        "body": "wst={{token}}",
+        "responseType": "xml",
+        "outputs": {
+          "check_status": "status"
+        }
+      },
+      {
+        "action": "assert",
+        "variable": "check_status",
+        "equals": "OK"
+      }
+    ],
+    "logout": [
+      {
+        "action": "clear",
+        "variables": ["token", "salt", "crypted", "hashed_password"]
+      }
+    ]
+  },
+  "search": {
+    "steps": [
+      {
+        "action": "http",
+        "method": "POST",
+        "url": "https://webshare.cz/api/search/",
+        "contentType": "application/x-www-form-urlencoded",
+        "body": "what={{query}}&sort=largest&limit=100&category=video&wst={{token}}",
+        "responseType": "xml",
+        "listElement": "file",
+        "itemMapping": {
+          "title": "name",
+          "size": "size",
+          "link": "ident"
+        }
+      }
+    ]
+  },
+  "streamUrl": {
+    "steps": [
+      {
+        "action": "http",
+        "method": "POST",
+        "url": "https://webshare.cz/api/file_link/",
+        "contentType": "application/x-www-form-urlencoded",
+        "body": "ident={{identifier}}&force_https=1&download_type=video_stream&wst={{token}}",
+        "responseType": "xml",
+        "outputs": {
+          "stream_url": "link"
+        }
+      }
+    ],
+    "result": "{{stream_url}}"
+  }
+}
